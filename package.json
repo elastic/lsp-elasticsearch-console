@@ -1,0 +1,23 @@
+{
+  "name": "lsp-kibana-dev-console-server",
+  "description": "Language server protocol implementation for Kibana dev console",
+  "version": "0.1.0",
+  "author": "Josh Mock <joshua.mock@elastic.co>",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": "*"
+  },
+  "dependencies": {
+    "node-fetch": "^2.7.0",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.11"
+  },
+  "scripts": {
+    "compile": "tsc -b"
+  },
+  "devDependencies": {
+    "@types/node": "^22.8.1",
+    "@types/node-fetch": "^2.6.11",
+    "typescript": "^5.6.3"
+  }
+}
