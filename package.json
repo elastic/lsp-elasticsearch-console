@@ -1,6 +1,6 @@
 {
-  "name": "lsp-kibana-dev-console-server",
-  "description": "Language server protocol implementation for Kibana dev console",
+  "name": "lsp-elasticsearch-console",
+  "description": "Language server protocol implementation for an Elasticsearch dev console",
   "version": "0.1.0",
   "author": "Josh Mock <joshua.mock@elastic.co>",
   "license": "Apache-2.0",
