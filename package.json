@@ -11,7 +11,7 @@
     "lsp-elasticsearch-console": "./out/server.js"
   },
   "dependencies": {
-    "node-fetch": "^2.7.0",
+    "node-fetch": "^3.0.0",
     "vscode-languageserver": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.11"
   },
