@@ -21,7 +21,7 @@
     "postcompile": "chmod +x ./out/server.js"
   },
   "devDependencies": {
-    "@types/node": "22.18.8",
+    "@types/node": "22.18.9",
     "@types/node-fetch": "2.6.13",
     "typescript": "5.9.3"
   }
