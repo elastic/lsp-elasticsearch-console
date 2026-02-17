@@ -14,7 +14,6 @@ import {
   CompletionItem,
 } from 'vscode-languageserver/node'
 import { TextDocument } from 'vscode-languageserver-textdocument'
-import fetch from 'node-fetch'
 
 import fs from 'fs'
 import util from 'util'
