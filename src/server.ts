@@ -128,7 +128,7 @@ connection.onCompletion(textDocumentPosition => {
     return Object.keys(methods).map((method, index): CompletionItem => {
       return {
         label: method,
-        kind: CompletionItemKind.Method,
+        kind: CompletionItemKind.Keyword,
         data: method
       }
     })
