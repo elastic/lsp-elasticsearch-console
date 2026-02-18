@@ -4,8 +4,15 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
+import { fileURLToPath } from 'node:url'
 import { Client, ClientOptions } from '@elastic/elasticsearch'
 import envPaths from 'env-paths'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+const logFile = fs.createWriteStream(path.join(__dirname, 'debug.log'), { flags: 'a'})
+const log = (message: any) => logFile.write(util.format(message) + '\n')
 
 const envPath = envPaths('lsp-elasticsearch-console')
 const SPEC_CACHE = path.join(envPath.data, 'specification', 'elasticsearch')
@@ -21,10 +28,29 @@ interface UrlTemplate {
 
 interface Endpoint {
   urls: UrlTemplate[]
+  request: { name: string, namespace: string }
+}
+
+interface Type {
+  kind: string
+  name: { name: string, namespace: string }
+  path?: []
 }
 
 interface Schema {
   endpoints: Endpoint[]
+  types: Type[]
+}
+
+let _indices: string[]
+export async function indices() {
+  if (_indices == null) {
+    const client = getClient()
+    if (client == null) return
+    const res = await client.indices.get({ index: '*', expand_wildcards: 'all' })
+    _indices = Object.keys(res)
+  }
+  return _indices
 }
 
 async function loadSchema(branch = "main") {
@@ -64,6 +90,9 @@ async function loadSchema(branch = "main") {
 
         // index all paths that are not index placeholders
         if (!urlPath.startsWith('{')) paths.add(urlPath)
+
+        // index all path placeholders
+        // TODO
       }
     }
   })
