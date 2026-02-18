@@ -129,11 +129,10 @@ function isHttpMethodContext(document: TextDocument, line: number, character: nu
   const node = getNodeAtPosition(document, line, character)
   if (!node) return false
 
-  // Check if we're in a method node or at the start of a request line
   return node.type === 'method' ||
          node.parent?.type === 'method' ||
          (node.type === 'ERROR' && node.parent?.type === 'request') ||
-         (node.startPosition.row === line && node.startPosition.column === 0)
+         (node.startPosition.column === 0)
 }
 
 /**
