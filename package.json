@@ -11,6 +11,7 @@
     "lsp-elasticsearch-console": "./out/server.js"
   },
   "dependencies": {
+    "@elastic/elasticsearch": "^9.3.1",
     "env-paths": "^4.0.0",
     "vscode-languageserver": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.11"

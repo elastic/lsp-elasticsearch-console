@@ -15,9 +15,11 @@ import {
   TextDocumentSyncKind,
   TextDocuments,
   CompletionItem,
+  InitializeParams
 } from 'vscode-languageserver/node'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import envPaths from 'env-paths'
+import { Client, ApiKeyAuth } from '@elastic/elasticsearch'
 
 const envPath = envPaths('lsp-elasticsearch-console')
 const SPEC_CACHE = path.join(envPath.data, 'specification', 'elasticsearch')
@@ -26,6 +28,8 @@ const logFile = fs.createWriteStream(__dirname + '/debug.log', { flags: 'a'})
 const log = (message: any) => logFile.write(util.format(message) + '\n')
 
 let connection = createConnection(ProposedFeatures.all)
+
+let client
 
 let documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument)
 
@@ -85,8 +89,29 @@ async function loadSchema (branch = "main") {
   })
 }
 
-connection.onInitialize(async (): Promise<InitializeResult> => {
+function initClient(params: InitializeParams) {
+  const options = params.initializationOptions ?? {}
+  let auth: ApiKeyAuth | { username: string, password: string }
+  if (options?.auth?.username != null && options?.auth?.password != null) {
+    auth = {
+      username: options.username,
+      password: options.password
+    }
+  } else if (options?.auth?.apiKey != null) {
+    auth = { apiKey: options.auth.apiKey }
+  } else {
+    return
+  }
+
+  const { url } = options
+  if (url == null) return
+
+  client = new Client({ node: url, auth })
+}
+
+connection.onInitialize(async (params: InitializeParams): Promise<InitializeResult> => {
   loadSchema()
+  initClient(params)
 
   return {
     capabilities: {
