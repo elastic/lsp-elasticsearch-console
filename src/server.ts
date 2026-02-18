@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'node:fs'
+import path from 'node:path'
+import util from 'node:util'
 import {
   createConnection,
   CompletionItemKind,
@@ -14,9 +17,11 @@ import {
   CompletionItem,
 } from 'vscode-languageserver/node'
 import { TextDocument } from 'vscode-languageserver-textdocument'
+import envPaths from 'env-paths'
 
-import fs from 'fs'
-import util from 'util'
+const envPath = envPaths('lsp-elasticsearch-console')
+const SPEC_CACHE = path.join(envPath.data, 'specification', 'elasticsearch')
+
 const logFile = fs.createWriteStream(__dirname + '/debug.log', { flags: 'a'})
 const log = (message: any) => logFile.write(util.format(message) + '\n')
 
@@ -40,22 +45,28 @@ interface Schema {
   endpoints: Endpoint[]
 }
 
-async function loadSchema () {
+async function loadSchema (branch = "main") {
   if (Object.keys(methods).length > 0) return
 
-  const url = 'https://raw.githubusercontent.com/elastic/elasticsearch-specification/main/output/schema/schema.json'
+  const schemaPath = path.join(SPEC_CACHE, branch, 'spec.json')
   let schema: Schema | undefined
-  try {
-    const response = await fetch(url)
-    schema = await response.json() as Schema
-  } catch (err) {
-    // fail quietly, just fewer autocomplete results
-    methods['DELETE'] = []
-    methods['GET'] = []
-    methods['HEAD'] = []
-    methods['POST'] = []
-    methods['PUT'] = []
-    return
+  if (fs.existsSync(schemaPath)) {
+    schema = JSON.parse(fs.readFileSync(schemaPath, 'utf-8')) as Schema
+  } else {
+    try {
+      const url = `https://raw.githubusercontent.com/elastic/elasticsearch-specification/${branch}/output/schema/schema.json`
+      const response = await fetch(url)
+      schema = await response.json() as Schema
+      fs.writeFileSync(schemaPath, JSON.stringify(schema), 'utf-8')
+    } catch (err) {
+      // fail quietly, just fewer autocomplete results
+      methods['DELETE'] = []
+      methods['GET'] = []
+      methods['HEAD'] = []
+      methods['POST'] = []
+      methods['PUT'] = []
+      return
+    }
   }
 
   // index each endpoint by HTTP method
