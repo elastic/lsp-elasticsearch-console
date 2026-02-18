@@ -3,10 +3,10 @@
  * Copyright Elasticsearch B.V. and contributors
  * SPDX-License-Identifier: Apache-2.0
  */
-
 import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
+import { fileURLToPath } from 'node:url'
 import {
   createConnection,
   CompletionItemKind,
@@ -16,103 +16,25 @@ import {
   TextDocuments,
   CompletionItem,
   InitializeParams
-} from 'vscode-languageserver/node'
+} from 'vscode-languageserver/node.js'
 import { TextDocument } from 'vscode-languageserver-textdocument'
-import envPaths from 'env-paths'
-import { Client, ApiKeyAuth } from '@elastic/elasticsearch'
+import Parser, { Language } from 'tree-sitter'
+import ElasticsearchConsole from 'tree-sitter-elasticsearch-console'
+import { getClient, getMethods, getPaths } from './elasticsearch.js'
 
-const envPath = envPaths('lsp-elasticsearch-console')
-const SPEC_CACHE = path.join(envPath.data, 'specification', 'elasticsearch')
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-const logFile = fs.createWriteStream(__dirname + '/debug.log', { flags: 'a'})
+const parser = new Parser()
+parser.setLanguage(ElasticsearchConsole as Language)
+
+const logFile = fs.createWriteStream(path.join(__dirname, 'debug.log'), { flags: 'a'})
 const log = (message: any) => logFile.write(util.format(message) + '\n')
 
 let connection = createConnection(ProposedFeatures.all)
 
-let client
-
 let documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument)
 
-const methods: Record<string, string[]> = {}
-const paths: Set<string> = new Set()
-
-interface UrlTemplate {
-  path: string
-  methods: string[]
-}
-
-interface Endpoint {
-  urls: UrlTemplate[]
-}
-
-interface Schema {
-  endpoints: Endpoint[]
-}
-
-async function loadSchema (branch = "main") {
-  if (Object.keys(methods).length > 0) return
-
-  const schemaPath = path.join(SPEC_CACHE, branch, 'spec.json')
-  let schema: Schema | undefined
-  if (fs.existsSync(schemaPath)) {
-    schema = JSON.parse(fs.readFileSync(schemaPath, 'utf-8')) as Schema
-  } else {
-    try {
-      const url = `https://raw.githubusercontent.com/elastic/elasticsearch-specification/${branch}/output/schema/schema.json`
-      const response = await fetch(url)
-      schema = await response.json() as Schema
-      fs.writeFileSync(schemaPath, JSON.stringify(schema), 'utf-8')
-    } catch (err) {
-      // fail quietly, just fewer autocomplete results
-      methods['DELETE'] = []
-      methods['GET'] = []
-      methods['HEAD'] = []
-      methods['POST'] = []
-      methods['PUT'] = []
-      return
-    }
-  }
-
-  // index each endpoint by HTTP method
-  schema.endpoints.forEach(endpoint => {
-    for (let url of endpoint.urls) {
-      for (let meth of url.methods) {
-        if (!methods[meth]) {
-          methods[meth] = []
-        }
-        const noSlash = url.path.replace(/^\//, '')
-        methods[meth].push(noSlash)
-        // index all paths that are not index placeholders
-        if (!noSlash.startsWith('{')) paths.add(noSlash)
-      }
-    }
-  })
-}
-
-function initClient(params: InitializeParams) {
-  const options = params.initializationOptions ?? {}
-  let auth: ApiKeyAuth | { username: string, password: string }
-  if (options?.auth?.username != null && options?.auth?.password != null) {
-    auth = {
-      username: options.username,
-      password: options.password
-    }
-  } else if (options?.auth?.apiKey != null) {
-    auth = { apiKey: options.auth.apiKey }
-  } else {
-    return
-  }
-
-  const { url } = options
-  if (url == null) return
-
-  client = new Client({ node: url, auth })
-}
-
 connection.onInitialize(async (params: InitializeParams): Promise<InitializeResult> => {
-  loadSchema()
-  initClient(params)
-
   return {
     capabilities: {
       textDocumentSync: TextDocumentSyncKind.Incremental,
@@ -123,30 +45,124 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
   }
 })
 
-connection.onCompletion(textDocumentPosition => {
-  if (textDocumentPosition.position.character === 1) {
-    return Object.keys(methods).map((method, index): CompletionItem => {
+connection.onCompletion(async textDocumentPosition => {
+  const document = documents.get(textDocumentPosition.textDocument.uri)
+  if (!document) return []
+
+  const methods = await getMethods()
+  const paths = await getPaths()
+
+  const { line, character } = textDocumentPosition.position
+
+  if (isHttpMethodContext(document, line, character)) {
+    return Object.keys(methods).map((method): CompletionItem => {
       return {
         label: method,
         kind: CompletionItemKind.Keyword,
         data: method
       }
     })
-  } else {
-    // TODO: only return paths that have the specified HTTP method
-    // how do we determine what method is entered?
-    return [...paths.values()].map(path => {
+  }
+
+  if (isPathContext(document, line, character)) {
+    const method = getHttpMethodFromLine(document, line)
+    const availablePaths = method && methods[method]
+      ? methods[method]
+      : [...paths.values()]
+
+    return availablePaths.map(path => {
       return {
         label: path,
-        kind: CompletionItemKind.Function,
+        kind: CompletionItemKind.Keyword,
       }
     })
   }
+
+  return []
 })
 
 connection.onCompletionResolve(item => item)
 
 connection.onExit(() => {})
+
+const documentTrees = new Map()
+documents.onDidChangeContent(({ document }) => {
+  const tree = parser.parse(document.getText())
+  documentTrees.set(document.uri, tree)
+})
+
+documents.onDidClose(({ document }) => {
+  documentTrees.delete(document.uri)
+})
+
+/**
+ * Convert LSP Position to byte offset in document
+ */
+function getByteOffset(document: TextDocument, line: number, character: number): number {
+  const text = document.getText()
+  const lines = text.split('\n')
+  let offset = 0
+
+  for (let i = 0; i < line; i++) {
+    offset += Buffer.byteLength(lines[i]) + 1 // +1 for newline
+  }
+
+  offset += Buffer.byteLength(lines[line].substring(0, character))
+  return offset
+}
+
+/**
+ * Get the syntax tree node at the cursor position
+ */
+function getNodeAtPosition(document: TextDocument, line: number, character: number) {
+  const tree = documentTrees.get(document.uri)
+  if (!tree) return null
+
+  const byteOffset = getByteOffset(document, line, character)
+  return tree.rootNode.descendantForIndex(byteOffset)
+}
+
+/**
+ * Check if cursor is in HTTP method context (at start of request line)
+ */
+function isHttpMethodContext(document: TextDocument, line: number, character: number): boolean {
+  const node = getNodeAtPosition(document, line, character)
+  if (!node) return false
+
+  // Check if we're in a method node or at the start of a request line
+  return node.type === 'method' ||
+         node.parent?.type === 'method' ||
+         (node.type === 'ERROR' && node.parent?.type === 'request') ||
+         (node.startPosition.row === line && node.startPosition.column === 0)
+}
+
+/**
+ * Extract HTTP method from the current request line
+ */
+function getHttpMethodFromLine(document: TextDocument, line: number): string | null {
+  const lineText = document.getText({
+    start: { line, character: 0 },
+    end: { line: line + 1, character: 0 }
+  })
+
+  // Match HTTP method at start of line
+  const match = lineText.match(/^\s*(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\b/)
+  return match ? match[1] : null
+}
+
+/**
+ * Check if cursor is in path/endpoint context
+ */
+function isPathContext(document: TextDocument, line: number, character: number): boolean {
+  const node = getNodeAtPosition(document, line, character)
+  if (!node) return false
+
+  // Check if we're in a path node or after a method
+  return node.type === 'path' ||
+         node.parent?.type === 'path' ||
+         node.parent?.type === 'request' ||
+         (node.type === 'ERROR' && node.parent?.type === 'request')
+}
 
 try {
   documents.listen(connection)

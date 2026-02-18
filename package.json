@@ -1,9 +1,10 @@
 {
   "name": "lsp-elasticsearch-console",
   "description": "Language server protocol implementation for an Elasticsearch dev console",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "Josh Mock <joshua.mock@elastic.co>",
   "license": "Apache-2.0",
+  "type": "module",
   "engines": {
     "node": "*"
   },
@@ -13,6 +14,8 @@
   "dependencies": {
     "@elastic/elasticsearch": "^9.3.1",
     "env-paths": "^4.0.0",
+    "tree-sitter": "^0.25.0",
+    "tree-sitter-elasticsearch-console": "github:elastic/tree-sitter-elasticsearch-console",
     "vscode-languageserver": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.11"
   },
