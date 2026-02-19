@@ -15,11 +15,17 @@ import { TextDocument } from 'vscode-languageserver-textdocument'
 import { getClient } from './elasticsearch.js'
 import { parseDocument, removeTree } from './parsing/syntax.js'
 import { registerCompletionHandlers } from './features/completion.js'
+import { initializeLogger, getLogger } from './logging.js'
 
 let connection = createConnection(ProposedFeatures.all)
 let documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument)
 
+// Initialize logging
+initializeLogger({ connection })
+const logger = getLogger('server')
+
 connection.onInitialize(async (params: InitializeParams): Promise<InitializeResult> => {
+  logger.debugLog('Server initializing', { initOptions: params.initializationOptions })
   getClient(params.initializationOptions)
   return {
     capabilities: {
@@ -34,18 +40,24 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
 registerCompletionHandlers(connection, documents)
 
 documents.onDidChangeContent(({ document }) => {
+  logger.debugLog('Document content changed', { uri: document.uri })
   parseDocument(document.uri, document.getText())
 })
 
 documents.onDidClose(({ document }) => {
+  logger.debugLog('Document closed', { uri: document.uri })
   removeTree(document.uri)
 })
 
-connection.onExit(() => {})
+connection.onExit(() => {
+  logger.info('Server exiting')
+})
 
 try {
   documents.listen(connection)
   connection.listen()
+  logger.info('Language server started')
 } catch (err) {
+  logger.error('Failed to start language server', err)
   process.exit(1)
 }
