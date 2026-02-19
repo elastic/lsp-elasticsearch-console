@@ -4,15 +4,8 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
-import { fileURLToPath } from 'node:url'
 import { Client, ClientOptions } from '@elastic/elasticsearch'
 import envPaths from 'env-paths'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
-const logFile = fs.createWriteStream(path.join(__dirname, 'debug.log'), { flags: 'a'})
-const log = (message: any) => logFile.write(util.format(message) + '\n')
 
 const envPath = envPaths('lsp-elasticsearch-console')
 const SPEC_CACHE = path.join(envPath.data, 'specification', 'elasticsearch')
