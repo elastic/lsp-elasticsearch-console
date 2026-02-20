@@ -5,7 +5,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { parseDocument, removeTree } from '../../src/parsing/syntax.js'
-import { isHttpMethodContext, isPathContext, getHttpMethodFromLine } from '../../src/parsing/context.js'
+import { isHttpMethodContext, isPathContext, getHttpMethodFromLine, getPathPrefix } from '../../src/parsing/context.js'
 
 describe('parsing/context', () => {
   const testUri = 'test://test.es'
@@ -137,6 +137,80 @@ describe('parsing/context', () => {
       expect(getHttpMethodFromLine(doc, 0)).toBe('GET')
       expect(getHttpMethodFromLine(doc, 1)).toBe('POST')
       expect(getHttpMethodFromLine(doc, 2)).toBe('DELETE')
+    })
+  })
+
+  describe('getPathPrefix', () => {
+    it('should extract partial segment at root', () => {
+      const content = 'GET _se'
+      const doc = TextDocument.create(testUri, 'elasticsearch', 1, content)
+      parseDocument(testUri, content)
+      const result = getPathPrefix(doc, 0, 7)
+      expect(result.completeSegments).toEqual([])
+      expect(result.partial).toBe('_se')
+    })
+
+    it('should extract complete segments and partial', () => {
+      const content = 'GET _cat/he'
+      const doc = TextDocument.create(testUri, 'elasticsearch', 1, content)
+      parseDocument(testUri, content)
+      const result = getPathPrefix(doc, 0, 11)
+      expect(result.completeSegments).toEqual(['_cat'])
+      expect(result.partial).toBe('he')
+    })
+
+    it('should handle trailing slash with empty partial', () => {
+      const content = 'GET _cat/'
+      const doc = TextDocument.create(testUri, 'elasticsearch', 1, content)
+      parseDocument(testUri, content)
+      const result = getPathPrefix(doc, 0, 9)
+      expect(result.completeSegments).toEqual(['_cat'])
+      expect(result.partial).toBe('')
+    })
+
+    it('should handle empty path after method', () => {
+      const content = 'GET '
+      const doc = TextDocument.create(testUri, 'elasticsearch', 1, content)
+      parseDocument(testUri, content)
+      const result = getPathPrefix(doc, 0, 4)
+      expect(result.completeSegments).toEqual([])
+      expect(result.partial).toBe('')
+    })
+
+    it('should handle multi-segment paths', () => {
+      const content = 'POST myindex/_search'
+      const doc = TextDocument.create(testUri, 'elasticsearch', 1, content)
+      parseDocument(testUri, content)
+      const result = getPathPrefix(doc, 0, 20)
+      expect(result.completeSegments).toEqual(['myindex'])
+      expect(result.partial).toBe('_search')
+    })
+
+    it('should handle deep path nesting', () => {
+      const content = 'GET _cat/indices/my'
+      const doc = TextDocument.create(testUri, 'elasticsearch', 1, content)
+      parseDocument(testUri, content)
+      const result = getPathPrefix(doc, 0, 19)
+      expect(result.completeSegments).toEqual(['_cat', 'indices'])
+      expect(result.partial).toBe('my')
+    })
+
+    it('should handle path with leading slash', () => {
+      const content = 'GET /_search'
+      const doc = TextDocument.create(testUri, 'elasticsearch', 1, content)
+      parseDocument(testUri, content)
+      const result = getPathPrefix(doc, 0, 12)
+      expect(result.completeSegments).toEqual([])
+      expect(result.partial).toBe('_search')
+    })
+
+    it('should handle cursor in middle of segment', () => {
+      const content = 'GET _cat/health'
+      const doc = TextDocument.create(testUri, 'elasticsearch', 1, content)
+      parseDocument(testUri, content)
+      const result = getPathPrefix(doc, 0, 10)
+      expect(result.completeSegments).toEqual(['_cat'])
+      expect(result.partial).toBe('h')
     })
   })
 })
