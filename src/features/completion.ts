@@ -9,20 +9,22 @@ import {
   CompletionItemKind,
   TextDocuments
 } from 'vscode-languageserver/node.js'
-import { isHttpMethodContext, isPathContext, getHttpMethodFromLine } from '../parsing/context.js'
-import { getMethods, getPaths } from '../elasticsearch.js'
+import { isHttpMethodContext, isPathContext, getHttpMethodFromLine, getPathPrefix } from '../parsing/context.js'
+import { getMethods, getPathTree, resolvePlaceholder } from '../elasticsearch.js'
+import { PathTree } from '../pathTree.js'
 
 /**
  * Get completion items based on cursor position and available methods/paths
  * Pure function for testability
  */
-export function getCompletionItems(
+export async function getCompletionItems(
   document: TextDocument,
   line: number,
   character: number,
   methods: Record<string, string[]>,
-  paths: Set<string>
-): CompletionItem[] {
+  pathTree: PathTree,
+  resolvePlaceholderFn: (name: string) => Promise<string[]>
+): Promise<CompletionItem[]> {
   if (isHttpMethodContext(document, line, character)) {
     return Object.keys(methods).map((method): CompletionItem => {
       return {
@@ -35,16 +37,27 @@ export function getCompletionItems(
 
   if (isPathContext(document, line, character)) {
     const method = getHttpMethodFromLine(document, line)
-    const availablePaths = method && methods[method]
-      ? methods[method]
-      : [...paths.values()]
+    const { completeSegments, partial } = getPathPrefix(document, line, character)
 
-    return availablePaths.map(path => {
-      return {
-        label: path,
-        kind: CompletionItemKind.Keyword,
-      }
-    })
+    const staticSegments = pathTree.getCompletions(completeSegments, method || undefined)
+    const placeholders = pathTree.getPlaceholdersAtDepth(completeSegments, method || undefined)
+    let resolvedValues: string[] = []
+
+    for (const placeholder of placeholders) {
+      const values = await resolvePlaceholderFn(placeholder)
+      resolvedValues = resolvedValues.concat(values)
+    }
+
+    const allCandidates = [...staticSegments, ...resolvedValues]
+    const filtered = allCandidates.filter(candidate =>
+      candidate.toLowerCase().startsWith(partial.toLowerCase())
+    )
+
+    const unique = [...new Set(filtered)]
+    return unique.map(label => ({
+      label,
+      kind: CompletionItemKind.Keyword,
+    }))
   }
 
   return []
@@ -62,11 +75,9 @@ export function registerCompletionHandlers(
     if (!document) return []
 
     const methods = await getMethods()
-    const paths = await getPaths()
-
+    const pathTree = await getPathTree()
     const { line, character } = textDocumentPosition.position
-
-    return getCompletionItems(document, line, character, methods, paths)
+    return getCompletionItems(document, line, character, methods, pathTree, resolvePlaceholder)
   })
 
   connection.onCompletionResolve(item => item)

@@ -74,3 +74,34 @@ export function isPathContext(document: TextDocument, line: number, character: n
 
   return false
 }
+
+interface PathPrefix {
+  completeSegments: string[]
+  partial: string
+}
+
+/**
+ * Extract path segments and partial input from the current line
+ * @returns Object with completeSegments (full path parts) and partial (being-typed segment)
+ */
+export function getPathPrefix(document: TextDocument, line: number, character: number): PathPrefix {
+  const lineText = document.getText({
+    start: { line, character: 0 },
+    end: { line, character }
+  })
+
+  const methodMatch = lineText.match(/^\s*(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+(.*)/)
+  if (!methodMatch) return { completeSegments: [], partial: '' }
+
+  let path = methodMatch[2]
+  if (path.startsWith('/')) path = path.substring(1)
+
+  const segments = path.split('/').filter(s => s.length > 0 || path.endsWith('/'))
+
+  if (segments.length === 0) return { completeSegments: [], partial: '' }
+
+  const partial = segments[segments.length - 1]
+  const completeSegments = segments.slice(0, -1)
+
+  return { completeSegments, partial }
+}

@@ -6,6 +6,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { Client, ClientOptions } from '@elastic/elasticsearch'
 import envPaths from 'env-paths'
+import { PathTree } from './pathTree.js'
 
 const envPath = envPaths('lsp-elasticsearch-console')
 const SPEC_CACHE = path.join(envPath.data, 'specification', 'elasticsearch')
@@ -13,6 +14,7 @@ const SPEC_CACHE = path.join(envPath.data, 'specification', 'elasticsearch')
 let client: Client | undefined
 const methods: Record<string, string[]> = {}
 const paths: Set<string> = new Set()
+let pathTree: PathTree | undefined
 
 interface UrlTemplate {
   path: string
@@ -46,12 +48,38 @@ export async function indices() {
   return _indices
 }
 
+/**
+ * Registry of placeholder handlers
+ * Maps placeholder names (e.g., "index") to functions that resolve them
+ */
+const placeholderHandlers: Record<string, () => Promise<string[] | undefined>> = {
+  'index': indices,
+}
+
+/**
+ * Resolve a placeholder to its actual values
+ * @param name - Placeholder name (e.g., "index" from {index})
+ * @returns Array of possible values, or empty array if unknown/unavailable
+ */
+export async function resolvePlaceholder(name: string): Promise<string[]> {
+  const handler = placeholderHandlers[name]
+  if (!handler) return []
+
+  try {
+    const result = await handler()
+    return result ?? []
+  } catch (error) {
+    return []
+  }
+}
+
 async function loadSchema(branch = "main") {
   // attempt to load from file cache
   const schemaDir = path.join(SPEC_CACHE, branch)
   fs.mkdirSync(schemaDir, { recursive: true })
   const schemaPath = path.join(schemaDir, 'spec.json')
   let schema: Schema | undefined
+  pathTree = new PathTree()
 
   if (fs.existsSync(schemaPath)) {
     schema = JSON.parse(fs.readFileSync(schemaPath, 'utf-8')) as Schema
@@ -76,16 +104,16 @@ async function loadSchema(branch = "main") {
   // index all HTTP methods and API paths
   schema.endpoints.forEach(endpoint => {
     for (let url of endpoint.urls) {
+      const urlPath = url.path.replace(/^\//, '')
+      // index all paths (including placeholders) in the tree
+      pathTree!.addPath(urlPath, url.methods)
+
+      // keep the old flat paths set for backward compatibility
+      if (!urlPath.startsWith('{')) paths.add(urlPath)
+
       for (let meth of url.methods) {
         methods[meth] ||= []
-        const urlPath = url.path.replace(/^\//, '')
         methods[meth].push(urlPath)
-
-        // index all paths that are not index placeholders
-        if (!urlPath.startsWith('{')) paths.add(urlPath)
-
-        // index all path placeholders
-        // TODO
       }
     }
   })
@@ -99,6 +127,11 @@ export async function getMethods (branch = "main"): Promise<typeof methods> {
 export async function getPaths (branch = "main") {
   if (paths.size === 0) await loadSchema(branch)
   return paths
+}
+
+export async function getPathTree (branch = "main"): Promise<PathTree> {
+  if (!pathTree) await loadSchema(branch)
+  return pathTree!
 }
 
 interface ApiAuth {
