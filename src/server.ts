@@ -15,6 +15,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument'
 import { getClient } from './elasticsearch.js'
 import { parseDocument, removeTree } from './parsing/syntax.js'
 import { registerCompletionHandlers } from './features/completion.js'
+import { registerHoverHandler } from './features/hover.js'
 import { initializeLogger, getLogger } from './logging.js'
 
 let connection = createConnection(ProposedFeatures.all)
@@ -32,12 +33,14 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
       textDocumentSync: TextDocumentSyncKind.Incremental,
       completionProvider: {
         resolveProvider: true
-      }
+      },
+      hoverProvider: true
     }
   }
 })
 
 registerCompletionHandlers(connection, documents)
+registerHoverHandler(connection, documents)
 
 documents.onDidChangeContent(({ document }) => {
   logger.debugLog('Document content changed', { uri: document.uri })

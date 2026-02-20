@@ -105,3 +105,15 @@ export function getPathPrefix(document: TextDocument, line: number, character: n
 
   return { completeSegments, partial }
 }
+
+/**
+ * Extract the path from the current request line
+ */
+export function getPathFromLine(document: TextDocument, line: number): string | null {
+  const lineText = document.getText({
+    start: { line, character: 0 },
+    end: { line: line + 1, character: 0 }
+  })
+  const match = lineText.match(/^\s*(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+(.+)/)
+  return match ? match[2].trim() : null
+}

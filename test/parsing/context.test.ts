@@ -5,7 +5,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { parseDocument, removeTree } from '../../src/parsing/syntax.js'
-import { isHttpMethodContext, isPathContext, getHttpMethodFromLine, getPathPrefix } from '../../src/parsing/context.js'
+import { isHttpMethodContext, isPathContext, getHttpMethodFromLine, getPathPrefix, getPathFromLine } from '../../src/parsing/context.js'
 
 describe('parsing/context', () => {
   const testUri = 'test://test.es'
@@ -211,6 +211,50 @@ describe('parsing/context', () => {
       const result = getPathPrefix(doc, 0, 10)
       expect(result.completeSegments).toEqual(['_cat'])
       expect(result.partial).toBe('h')
+    })
+  })
+
+  describe('getPathFromLine', () => {
+    it('should return path for GET _search', () => {
+      const content = 'GET _search'
+      const doc = TextDocument.create(testUri, 'elasticsearch', 1, content)
+      expect(getPathFromLine(doc, 0)).toBe('_search')
+    })
+
+    it('should return path for POST my-index/_bulk', () => {
+      const content = 'POST my-index/_bulk'
+      const doc = TextDocument.create(testUri, 'elasticsearch', 1, content)
+      expect(getPathFromLine(doc, 0)).toBe('my-index/_bulk')
+    })
+
+    it('should return null for JSON body line', () => {
+      const content = '{ "query": {} }'
+      const doc = TextDocument.create(testUri, 'elasticsearch', 1, content)
+      expect(getPathFromLine(doc, 0)).toBeNull()
+    })
+
+    it('should return null for empty line', () => {
+      const content = ''
+      const doc = TextDocument.create(testUri, 'elasticsearch', 1, content)
+      expect(getPathFromLine(doc, 0)).toBeNull()
+    })
+
+    it('should handle whitespace before method', () => {
+      const content = '  GET _search'
+      const doc = TextDocument.create(testUri, 'elasticsearch', 1, content)
+      expect(getPathFromLine(doc, 0)).toBe('_search')
+    })
+
+    it('should handle paths with leading slash', () => {
+      const content = 'GET /_search'
+      const doc = TextDocument.create(testUri, 'elasticsearch', 1, content)
+      expect(getPathFromLine(doc, 0)).toBe('/_search')
+    })
+
+    it('should handle multi-segment paths', () => {
+      const content = 'GET my-index/_doc/123'
+      const doc = TextDocument.create(testUri, 'elasticsearch', 1, content)
+      expect(getPathFromLine(doc, 0)).toBe('my-index/_doc/123')
     })
   })
 })

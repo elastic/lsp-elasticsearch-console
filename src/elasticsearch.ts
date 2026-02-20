@@ -15,15 +15,20 @@ let client: Client | undefined
 const methods: Record<string, string[]> = {}
 const paths: Set<string> = new Set()
 let pathTree: PathTree | undefined
+let endpoints: Endpoint[] = []
 
 interface UrlTemplate {
   path: string
   methods: string[]
 }
 
-interface Endpoint {
+export interface Endpoint {
+  name?: string
+  description?: string
+  docUrl?: string
   urls: UrlTemplate[]
   request: { name: string, namespace: string }
+  availability?: { stack?: { since?: string } }
 }
 
 interface Type {
@@ -102,6 +107,8 @@ async function loadSchema(branch = "main") {
   }
 
   // index all HTTP methods and API paths
+  endpoints = schema.endpoints
+
   schema.endpoints.forEach(endpoint => {
     for (let url of endpoint.urls) {
       const urlPath = url.path.replace(/^\//, '')
@@ -132,6 +139,50 @@ export async function getPaths (branch = "main") {
 export async function getPathTree (branch = "main"): Promise<PathTree> {
   if (!pathTree) await loadSchema(branch)
   return pathTree!
+}
+
+export async function getEndpoints (branch = "main"): Promise<Endpoint[]> {
+  if (endpoints.length === 0) await loadSchema(branch)
+  return endpoints
+}
+
+/**
+ * Find an endpoint that matches the given path and HTTP method.
+ * Supports template path matching (e.g., {index}/_search).
+ */
+export function findEndpoint(path: string, method: string, endpoints: Endpoint[]): Endpoint | undefined {
+  const normalizedPath = path.replace(/^\//, '').split('?')[0].split('#')[0]
+  const normalizedMethod = method.toUpperCase()
+
+  // first try exact match
+  for (const endpoint of endpoints) {
+    for (const url of endpoint.urls) {
+      const templatePath = url.path.replace(/^\//, '')
+      if (templatePath === normalizedPath && url.methods.includes(normalizedMethod)) {
+        return endpoint
+      }
+    }
+  }
+
+  // then try template matching
+  for (const endpoint of endpoints) {
+    for (const url of endpoint.urls) {
+      const templatePath = url.path.replace(/^\//, '')
+
+      const regexPattern = templatePath
+        .split('/')
+        .map(segment => {
+          if (/^\{[^}]+\}$/.test(segment)) return '[^/]+'
+          return segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        })
+        .join('/')
+
+      const regex = new RegExp(`^${regexPattern}$`)
+      if (regex.test(normalizedPath) && url.methods.includes(normalizedMethod)) return endpoint
+    }
+  }
+
+  return undefined
 }
 
 interface ApiAuth {
