@@ -27,12 +27,12 @@
     "test": "vitest run && npm run license-checker"
   },
   "devDependencies": {
-    "@types/debug": "^4.1.12",
+    "@types/debug": "4.1.12",
     "@types/node": "24.10.11",
     "@types/node-fetch": "2.6.13",
-    "license-checker": "^25.0.1",
+    "license-checker": "25.0.1",
     "ts-node": "10.9.2",
     "typescript": "5.9.3",
-    "vitest": "^4.0.0"
+    "vitest": "4.0.18"
   }
 }
