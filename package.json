@@ -28,7 +28,7 @@
   },
   "devDependencies": {
     "@types/debug": "4.1.12",
-    "@types/node": "24.10.11",
+    "@types/node": "24.10.12",
     "@types/node-fetch": "2.6.13",
     "license-checker": "25.0.1",
     "ts-node": "10.9.2",
