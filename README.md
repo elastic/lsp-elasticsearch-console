@@ -5,6 +5,13 @@ When used with [elasticsearch.nvim](https://github.com/elastic/elasticsearch.nvi
 
 **This project is still experimental!** Not intended for production use.
 
+## Features
+
+- **HTTP method autocomplete**: Autocomplete suggestions for HTTP methods (GET, POST, PUT, DELETE, HEAD, etc.)
+- **API path autocomplete**: Autocomplete suggestions for Elasticsearch API paths
+- **Placeholder resolution**: URL path autocomplete suggestions include real index names, pulled from the connected Elasticsearch cluster
+- **Hover Documentation**: Display endpoint documentation when hovering over API calls
+
 ## Install
 
 ```sh
