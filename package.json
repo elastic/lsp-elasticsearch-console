@@ -14,7 +14,7 @@
   "dependencies": {
     "@elastic/elasticsearch": "^9.3.1",
     "env-paths": "^4.0.0",
-    "tree-sitter": "^0.25.0",
+    "tree-sitter": "^0.25.1",
     "tree-sitter-elasticsearch-console": "file:../tree-sitter-elasticsearch-console",
     "vscode-languageserver": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.11"

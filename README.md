@@ -23,3 +23,7 @@ npm run compile
 # install the package
 npm link
 ```
+
+## License
+
+Licensed under the Apache License, Version 2.0.
