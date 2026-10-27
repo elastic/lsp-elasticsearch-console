@@ -1,0 +1,11 @@
+header:
+  license:
+    spdx-id: Apache-2.0
+    content: |
+      Copyright Elasticsearch B.V. and contributors
+      SPDX-License-Identifier: Apache-2.0
+  paths:
+    - 'src/**/*.ts'
+    - 'test/**/*.ts'
+    - '*.ts'
+  comment: on-failure
