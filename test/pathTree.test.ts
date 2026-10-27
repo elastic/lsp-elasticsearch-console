@@ -1,3 +1,7 @@
+/**
+ * Copyright Elasticsearch B.V. and contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
 import { describe, it, expect } from 'vitest'
 import { PathTree } from '../src/pathTree'
 
