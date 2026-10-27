@@ -1,4 +1,8 @@
 /**
+ * Copyright Elasticsearch B.V. and contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+/**
  * PathNode represents a single segment in the path tree
  */
 export interface PathNode {
